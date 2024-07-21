@@ -4,27 +4,28 @@
 % Our code is based on the paper: 
 % Feng, Y., Wang, G.J., Zhu, Y., Xie, C., 2023. Systemic risk spillovers and the determinants in the stock markets of the Belt and Road countries. Emerging Markets Review 55, 101020.
 
-
-%% Step1: Calculate the CoES of market return series to characterize the tail risk profile
+%% Step1: Calculate the CoES of market return
 
 clc, clear
 % Set the path and load data
 datapath = 'D:\TENQR\';
-codepath = 'D:\TENQR';
-MarketReturn = xlsread([datapath, 'Oil gold G20 stock and forex return.xlsx']);
+codepath = 'D:\TENQR\';
+MarketReturn = xlsread([datapath, 'Comm G20 Stock and Forex Return.xlsx']);
 
-% len - Number of sample stock markets' observations
-% N   - Number of sample stock markets
+% len - Number of sample markets' observations
+% N   - Number of sample markets
 [len,N]=size(MarketReturn);   
 
 % Parameter setting of rolling time window
-WindowSize = 52;   
-WindowStep = 01;
+WindowSize = 52;    
+WindowStep = 01;   
 WindowNum = floor((len-WindowSize)/WindowStep+1);   
 tau = 0.05; % Consider the risk measure at the 5% quantile level
 
 VaR_005 = zeros(WindowSize,N,WindowNum);
 CoES_005 = zeros(N,N,WindowNum);
+
+% Adopt the CAViaR method to estimate the VaR and calculate the CoES by definition
 
 addpath(genpath([codepath])) 
 for w = 1:WindowNum
@@ -34,7 +35,7 @@ for w = 1:WindowNum
     t2 = (w-1)*WindowStep+WindowSize;
     Return = MarketReturn(t1:t2,:);
     % Estimate the VaR by using the CAViaR method
-    [VaR_005(:,:,w), Table_Coeff_005] = CAViaROptimisation_gjw_final(2, tau, Return); % The dimension of the VaR is WindowSize��N
+    [VaR_005(:,:,w), Table_Coeff_005] = CAViaROptimisation_gjw_final(2, tau, Return); % The dimension of the VaR is WindowSize×N
     for i = 1:N
         % Calculate the CoES by definition
         for j = 1:N
@@ -62,7 +63,9 @@ end
 
 %% Step2: Construct the similarity matrix
 
-% Normalization of the CoES series
+load([datapath, 'VaR_CAViaR_Estimation_005.mat'], 'VaR_005')
+load([datapath, 'CoES_definition1_005.mat'], 'CoES_005')
+
 standCoES_005 = zeros(N,N,WindowNum);
 for w = 1:WindowNum
     for i = 1:N
@@ -71,12 +74,10 @@ for w = 1:WindowNum
 end
 
 % Compute the similarity matrix based on the similarity of the risk profiles (CoES)
-S = zeros(N,N,WindowNum);  % Similarity matrix (N��N) of WindowNum time Windows 
-Connectedness_Sim = zeros(WindowNum+12,1); % The total connectedness of the similarity matrix
-Connectedness_Dec = zeros(WindowNum+12,N); % The individual connectedness of the similarity matrix
+S = zeros(N,N,WindowNum);  % Similarity matrix (N×N) of WindowNum time Windows 
+Connectedness_Sim = zeros(WindowNum,1); % The total connectedness of the similarity matrix
+Connectedness_Dec = zeros(WindowNum,N); % The individual connectedness of the similarity matrix
 
-Connectedness_Sim(1:12,1) = NaN;           
-Connectedness_Dec(1:12,1:N) = NaN;
 
 for w = 1:WindowNum
     for i = 1:N
@@ -85,9 +86,9 @@ for w = 1:WindowNum
             S(i,j,w) = (dot(standCoES_005(i,:,w),standCoES_005(j,:,w))/(norm(standCoES_005(i,:,w))*norm(standCoES_005(j,:,w))));
             S(j,i,w) = S(i,j,w);
         end 
-        Connectedness_Dec(12+w,i) = sum(S(i,:,w));
+        Connectedness_Dec(w,i) = sum(S(i,:,w));
     end
-    Connectedness_Sim(12+w,1) = sum(sum(S(:,:,w)));
+    Connectedness_Sim(w,1) = sum(sum(S(:,:,w)));
 end
 
 % % Save the result 
@@ -95,14 +96,14 @@ xlswrite([datapath, 'NetworkConnectedness.xlsx'], Connectedness_Sim, 'Connectedn
 xlswrite([datapath, 'NetworkConnectedness_Dec.xlsx'], Connectedness_Dec, 'Connectedness', 'A');
 
 % Present the similarity matrix by means of a heat map
-country_name = {'Brent','WTI','HOil',...
+country_name = {'WTI','Gold',...
                 'ARG','AUS','BRA','CAN','CHN','DEU','EU','FRA','GBR','IDN','IND','ITA','JPN','KOR','MEX','RUS','SAU','TUR','USA','ZAF',...
                 'ARS','AUD','BRL','CAD','CNY','EUR','GBP','IDR','INR','JPY','KRW','MXN','RUB','SAR','TRY','USD','ZAR'};
 
-
 year = {'2008' '2009' '2010' '2011' '2012' '2013' '2014' '2015',...
         '2016' '2017' '2018' '2019' '2020' '2021' '2022' '2023'};
-ind = [29 63 93 124 198 250 302 368 406 459 522 563 623 667 723 773];
+    
+ind = [52   104   156   208   260   312   364   416   468   520   572   624   676   728   780   829];
 
 sub1 = figure; figure(sub1) % 2008-2011
 for iyear = 1:4
@@ -110,17 +111,17 @@ for iyear = 1:4
     clims = [-1 1]; 
     imagesc(S(:,:,ind(iyear)),clims) 
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub1,'PaperPosition',[0 0, 24 24]) 
     set(sub1, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
     'XTickLabel',country_name,....
-    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
     'XTickLabelRotation',90,...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub1, [datapath, 'figure1.jpg'])
 
@@ -130,17 +131,17 @@ for iyear = 5:8
     clims = [-1 1]; 
     imagesc(S(:,:,ind(iyear)),clims) 
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub2,'PaperPosition',[0 0, 24 24]) 
     set(sub2, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
     'XTickLabel',country_name,....
-    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
     'XTickLabelRotation',90,...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub2, [datapath, 'figure2.jpg'])
 
@@ -150,17 +151,17 @@ for iyear = 9:12
     clims = [-1 1]; 
     imagesc(S(:,:,ind(iyear)),clims) 
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub3,'PaperPosition',[0 0, 24 24]) 
     set(sub3, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
     'XTickLabel',country_name,.... 
-    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
     'XTickLabelRotation',90,...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub3, [datapath, 'figure3.jpg'])
 
@@ -170,27 +171,27 @@ for iyear = 13:16
     clims = [-1 1]; 
     imagesc(S(:,:,ind(iyear)),clims) 
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub4,'PaperPosition',[0 0, 24 24]) 
     set(sub4, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+    'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
     'XTickLabel',country_name,....
-    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+    'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
     'XTickLabelRotation',90,...
-    'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+    'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub4, [datapath, 'figure4.jpg'])
 
 %% Step3: Use asymmetric breakpoint method to transform the similarity matrix into adjacency matrix (tail risk network)
 
 A = zeros(N,N,WindowNum);                   % Adjacency matrix 
-Connectedness_Adj = zeros(WindowNum+12,1);  
-Connectedness_Adj(1:12,1) = NaN;
-Negative_ratio = zeros(WindowNum+12,1);     % Negative correlation ratio (n2/n)
-Negative_ratio(1:12,1) = NaN;
+Connectedness_Adj = zeros(WindowNum,1);  
+% Connectedness_Adj(1:12,1) = NaN;
+Negative_ratio = zeros(WindowNum,1);     % Negative correlation ratio (n2/n)
+% Negative_ratio(1:12,1) = NaN;
 statistics = zeros(WindowNum,6);            % Statistics of the Joint SVR Test [SVR_Lpos, SVR_Spos, SVR_Lneg, SVR_Sneg, Sta_Large, Sta_Small]
 BreakPoint = zeros(WindowNum, 2 + 7+7);     % BreakPoint
 
@@ -216,7 +217,7 @@ for w = 1:WindowNum
     NN = N*(N-1)/2;
     Pnum_posivive = length(P_pos_sorted);
     Pnum_negative = length(P_neg_sorted);
-    Negative_ratio(12+w,1) = Pnum_negative/NN;
+    Negative_ratio(w,1) = Pnum_negative/NN;
     
     % Introduce the cumulative distribution function of the standard normal distribution
     sigma_positive = normcdf(sqrt(N)*P_pos_sorted);
@@ -283,8 +284,35 @@ for w = 1:WindowNum
             A(j,i,w)=A(i,j,w);
         end
     end
-    Connectedness_Adj(12+w,1) = sum(sum(A(:,:,w)));
+    Connectedness_Adj(w,1) = sum(sum(A(:,:,w)));
 end
+
+% plot Joint SVR Test for Small and Large Groups
+Joint_test = xlsread([datapath, 'Joint SVR test result.xlsx'], 'Sheet1', 'B:D');
+% 创建一个新的图形窗口
+figure(1)
+set(gcf, 'Position', [0, 0, 800, 700]);
+% 绘制第一个子图
+subplot(2,1,1); % 2x1 网格中的第一个子图
+scatter(Joint_test(:,1), Joint_test(:,2), 16, 'filled'); % 绘制散点图
+title('Joint SVR Test for Small Groups', 'FontSize', 16); % 设置子图标题
+xlabel('Year', 'FontSize', 12); % x 轴标签
+ylabel('p-value', 'FontSize', 12); % y 轴标签
+xlim([2008 2023]); % 设置 x 轴范围为 2008 到 2023
+ylim([0 1]); % 设置 y 轴范围为 0 到 1
+set(gca,'YTick',[0 0.5 1], 'FontSize',12,...
+        'XTick',[2009 2011 2013 2015 2017 2019 2021 2023], 'FontSize',12)
+% 绘制第二个子图
+subplot(2,1,2); % 2x1 网格中的第二个子图
+scatter(Joint_test(:,1), Joint_test(:,3), 16, 'filled'); % 绘制散点图
+title('Joint SVR Test for Large Groups', 'FontSize', 16); % 设置子图标题
+xlabel('Year', 'FontSize', 12); % x 轴标签
+ylabel('p-value', 'FontSize', 12); % y 轴标签
+xlim([2008 2023]); % 设置 x 轴范围
+ylim([0 1]); % 设置 y 轴
+set(gca,'YTick',[0 0.5 1], 'FontSize',12,...
+        'XTick',[2009 2011 2013 2015 2017 2019 2021 2023], 'FontSize',12)
+
 
 % Save the result 
 save([datapath, 'adjacency matrix .mat'], 'A')
@@ -309,35 +337,38 @@ for i = 1:N
     Adj_negavg(i,i) = 0;
 end
 
+xlswrite([datapath, 'Adj_posavg.xlsx'], Adj_posavg, 'Adj_posavg', 'A');
+xlswrite([datapath, 'Adj_negavg.xlsx'], Adj_negavg, 'Adj_negavg', 'A');
+
 % Present the adjacency matrix and the average ones by means of heat maps
-country_name = {'Brent','WTI','HOil',...
+country_name = {'WTI','Gold',...
                 'ARG','AUS','BRA','CAN','CHN','DEU','EU','FRA','GBR','IDN','IND','ITA','JPN','KOR','MEX','RUS','SAU','TUR','USA','ZAF',...
                 'ARS','AUD','BRL','CAD','CNY','EUR','GBP','IDR','INR','JPY','KRW','MXN','RUB','SAR','TRY','USD','ZAR'};
             
 year = {'2008' '2009' '2010' '2011' '2012' '2013' '2014' '2015',...
         '2016' '2017' '2018' '2019' '2020' '2021' '2022' '2023'};
     
-ind = [35 63 124 176 225 276 331 391 427 473 530 596 628 676 723 773];            
+ind = [43   104   156   208   260   312   364   416   468   520   572   624   676   728   780   829];
             
 sub5 = figure;
 figure(sub5)    % 2008-2011
 for iyear = 1:4
     subplot(2,2,iyear)
     clims = [-1 1]; 
-    imagesc(A(:,:,ind(iyear)),clims) 
+    imagesc(A(:,:,ind(iyear)),clims)
     colormap(gray)
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub5,'PaperPosition',[0 0, 24 24]) 
     set(sub5, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
         'XTickLabel',country_name,....
-        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
         'XTickLabelRotation',90,...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub5, [datapath, 'figure5.jpg'])
 
@@ -349,17 +380,17 @@ for iyear = 5:8
     imagesc(A(:,:,ind(iyear)),clims) 
     colormap(gray)
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub6,'PaperPosition',[0 0, 24 24]) 
     set(sub6, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
         'XTickLabel',country_name,....
-        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
         'XTickLabelRotation',90,...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub6, [datapath, 'figure6.jpg'])
 
@@ -371,17 +402,17 @@ for iyear = 9:12
     imagesc(A(:,:,ind(iyear)),clims)
     colormap(gray)
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub7,'PaperPosition',[0 0, 24 24]) 
     set(sub7, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
         'XTickLabel',country_name,....
-        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
         'XTickLabelRotation',90,...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub7, [datapath, 'figure7.jpg'])
 
@@ -390,73 +421,83 @@ figure(sub8)    % 2020-2023
 for iyear = 13:16
     subplot(2,2,iyear-12)
     clims = [-1 1];
-    imagesc(A(:,:,ind(iyear)),clims) 
+    imagesc(A(:,:,ind(iyear)),clims)
     colormap(gray)
     colorbar
-    title(year(iyear), 'FontSize', 7);
+    title(year(iyear), 'FontSize', 9);
     axis image
     set(sub8,'PaperPosition',[0 0, 24 24]) 
     set(sub8, 'PaperSize', [24 24]);
     set(gca, 'YTickLabel',country_name,...
-        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman',...
+        'YTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman',...
         'XTickLabel',country_name,....
-        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40],...
+        'XTick',[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39],...
         'XTickLabelRotation',90,...
-        'FontSize',3,'FontAngle','Normal','FontName','Times New Roman')
+        'FontSize',5,'FontAngle','Normal','FontName','Times New Roman')
 end
 saveas(sub8, [datapath, 'figure8.jpg'])
 
-% The positive average adjacency matrix
-figure_AS1 = figure;
-clims1 = [0, 1];
-h1 = heatmap(country_name, country_name, Adj_posavg);
-h1.ColorLimits = clims1;
-h1.CellLabelFormat = '%0.2f';
-title('Average A+'); 
-
-% The negative average adjacency matrix
-cmap = h1.Colormap;
-cmap = cmap(end:-1:1, :);
-figure_AS2 = figure;
-clims2 = [-1, 0];
-h2 = heatmap(country_name, country_name, Adj_negavg);    
-colorbar
-colormap(cmap)
-h2.ColorLimits = clims2;
-h2.CellLabelFormat = '%0.2f';
-title('Average A-');  
 
 %% Step4: Construct the systemic risk score index and individual risk contribution index
 
+MC = reshape(VaR_005(end,:,:), N, WindowNum)';
+Systemic_RiskScore = zeros(WindowNum,1); 
+Systemic_RiskDecomposition = zeros(WindowNum,N);
+for w = 1:WindowNum
+    Systemic_RiskScore(w,1) = MC(w,:) * A(:,:,w) * MC(w,:)';
+    for i = 1:N
+        Systemic_RiskDecomposition(w,i) = MC(w,i) * A(i,:,w) * MC(w,:)';
+    end
+end
+
+newRows = floor((WindowNum) / WindowSize) + 1;
+% 创建一个新的数组来存放求和结果
+Systemic_RiskDecomp_avg = zeros(N, newRows);
+for i = 1:WindowSize:WindowNum
+    % 获取当前区域的行的范围
+    rowRange = i:min(i+WindowSize-1, WindowNum);
+    disp(i);disp(min(i+WindowSize-1, WindowNum));
+    % 获取当前区域的子矩阵并对其进行求和
+    chunk = Systemic_RiskDecomposition(rowRange, :);
+    Systemic_RiskDecomp_avg(:,(i+WindowSize-1)/WindowSize) = sum(chunk, 1) / size(chunk,1);
+end
+
+% Save the result 
+xlswrite([datapath, 'Systemic_RiskScore.xlsx'], Systemic_RiskScore, 'RiskScore', 'A');
+xlswrite([datapath, 'Systemic_RiskDecomposition.xlsx'], Systemic_RiskDecomposition, 'RiskDecomposition', 'A');
+xlswrite([datapath, 'Systemic_RiskDecomp_avg.xlsx'], Systemic_RiskDecomp_avg, 'Systemic_RiskDecomp_avg', 'A');
+
+% Displays the dynamic evolution of the total connectedness, negative correlation ratio and systemic risk score
 figure(1)
-Xa = 1:789;
+set(gcf, 'Position', [0, 0, 800, 800]);
+Xa = 1:(WindowNum);
 subplot(3,1,1)
 % Description of important financial events
-% �� Window No.36-96: The 2008 global financial crisis
-fill([20 96 96 20],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ① Window No.30-80: The 2008-2009 global financial crisis
+fill([30 80 80 30],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
-% �� Window No.122-170: The 2010-2012 European sovereign debt crisis
-fill([122 170 170 122],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ② Window No.117-210: The 2010-2012 European sovereign debt crisis
+fill([117 210 210 117],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
-% �� Window No.365-400: The 2005 Chinese stock market crash 
-fill([365 400 400 365],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ③ Window No.355-470: The 2015-2016 Commodity prices collapse and Brexit vote
+fill([355 470 470 355],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
-% �� Window No.430-470: The 2016 Brexit vote
-fill([430 470 470 430],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ④ Window No.520-560: The 2018 Interest Increase by Federal Reserve 
+fill([520 560 560 520],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
-% �� Window No.520-570: The 2018 currency crisis in emerging countries
-fill([520 570 570 520],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ⑤ Window No.620-675: The 2020-2021 global public health emergency
+[H2] = fill([620 675 675 620],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
-% �� Window No.631-700: The 2020-2021 global public health emergency
-[H2] = fill([631 700 700 631],[0 0 1000 1000],[0.90 0.90 0.90],'EdgeColor','none');
+% ⑥ Window No.730-770: The 2022 Russia-Ukraine War
+[H2] = fill([730 770 770 730],[1 1 999 999],[0.90 0.90 0.90],'EdgeColor','none');
 hold on
 
 % Total connectedness (TC)
 plot(Xa,Connectedness_Sim,'color',[0.00,0.45,0.74], 'LineWidth',1)
 set(gca,'XTickLabel',{'2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023'},...
-    'XTick',[1 53 105 158 209 261 313 365 418 470 522 574 627 679 723 773],...
-     'FontSize',10,'FontAngle','Normal','FontName','Times New Roman')
+    'XTick',1:52:829,...
+     'FontSize',8,'FontAngle','Normal','FontName','Times New Roman')
 % xlabel('Time','FontName','Times New Roman','FontSize',10)
 title('Total connectedness (TC)','FontName','Times New Roman','FontSize',10)
 
@@ -464,10 +505,36 @@ title('Total connectedness (TC)','FontName','Times New Roman','FontSize',10)
 subplot(3,1,2)
 plot(Xa, Negative_ratio,'LineWidth',1)
 set(gca,'XTickLabel',{'2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023'},...
-    'XTick',[1 53 105 158 209 261 313 365 418 470 522 574 627 679 723 773],...
-     'FontSize',10,'FontAngle','Normal','FontName','Times New Roman')
+    'XTick',1:52:829,...
+     'FontSize',8,'FontAngle','Normal','FontName','Times New Roman')
 title('Negative Correlation Ratio (n2/n)','FontName','Times New Roman','FontSize',10)
 
+% Systemic Risk Score
+subplot(3,1,3)
+% Description of important financial events
+% ① Window No.30-80: The 2008-2009 global financial crisis
+fill([30 80 80 30],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+% ② Window No.117-210: The 2010-2012 European sovereign debt crisis
+fill([117 210 210 117],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+% ③ Window No.355-470: The 2015-2016 Commodity prices collapse and Brexit vote
+fill([355 470 470 355],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+% ④ Window No.520-560: The 2018 Interest Increase by Federal Reserve 
+fill([520 560 560 520],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+% ⑤ Window No.620-675: The 2020-2021 global public health emergency
+[H2] = fill([620 675 675 620],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+% ⑥ Window No.730-770: The 2022 Russia-Ukraine War
+[H2] = fill([730 770 770 730],[-1.8 -1.8 39.5 39.5],[0.90 0.90 0.90],'EdgeColor','none');
+hold on
+plot(Xa, Systemic_RiskScore,'color',[0.00,0.45,0.74], 'LineWidth',1)
+set(gca,'XTickLabel',{'2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023'},...
+    'XTick',1:52:829, 'YLim', [-2, 40],...
+     'FontSize',8,'FontAngle','Normal','FontName','Times New Roman')
+title('Systemic Risk Score','FontName','Times New Roman','FontSize',10)
 
 %% Step5: Adopt the TRNQR model (Chen et al., 2019) to analyze the network factors dynamic
 
@@ -488,15 +555,15 @@ NetFactor_nev = zeros((len-WindowSize),N);
 % Perform the TENQR model from the regional perspective
 RscriptFileName = [codepath, 'rq_check.r'];
 Rpath = 'D:\program\R-4.3.2\bin'; 
-region = {'oil', 'stock', 'forex', 'system'};
+region = {'Comm', 'Stock', 'Forex', 'System'};
 varnames = {'const', 'lagged Y', 'network pos', 'network neg', 'US bond yield',...
-    'CHN bond yield', 'VIX', 'S&P GSCI','Gold'};
+    'CHN bond yield', 'VIX', 'S&P GSCI'};
+
 pv = 0.1:0.025:0.9; % quantile
 
+geogr_loc = [1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]; 
 
-geogr_loc = [1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]; 
-
-country_name = {'Brent','WTI','HOil',...
+country_name = {'WTI','Gold',...
                 'ARG','AUS','BRA','CAN','CHN','DEU','EU','FRA','GBR','IDN','IND','ITA','JPN','KOR','MEX','RUS','SAU','TUR','USA','ZAF',...
                 'ARS','AUD','BRL','CAD','CNY','EUR','GBP','IDR','INR','JPY','KRW','MXN','RUB','SAR','TRY','USD','ZAR'};
             
@@ -515,7 +582,7 @@ for iCL = 1:4
         which_cluster = find(geogr_loc==3);
     end
     if (iCL==4) 
-        which_cluster = 1:40;
+        which_cluster = 1:39;
     end 
     
     Ypart = MarketReturn((WindowSize+1):len,which_cluster);
@@ -535,15 +602,9 @@ for iCL = 1:4
     % Set the missing value to 0
     NetFactor_pos_CL(find(isnan(NetFactor_pos_CL(:,:)))) = 0;
     NetFactor_nev_CL(find(isnan(NetFactor_nev_CL(:,:)))) = 0;
-%     varnames = {'const', 'lagged Y', 'network pos', 'network neg', 'EMU bond yield',...
-%         'CHN bond yield', 'VIX', 'USDX','TEDrate','S&P GSCI','Gold', 'EPU'};
-    if (iCL==1)
-        Xall = [ones((len-WindowSize)*length(which_cluster),1) Ypartlag(:)...
-            NetFactor_pos_CL(:) repmat(MV,length(which_cluster),1)];   %Explanatory variables
-    else
-        Xall = [ones((len-WindowSize)*length(which_cluster),1) Ypartlag(:)...
+
+    Xall = [ones((len-WindowSize)*length(which_cluster),1) Ypartlag(:)...
             NetFactor_pos_CL(:) NetFactor_nev_CL(:) repmat(MV,length(which_cluster),1)];   %Explanatory variables
-    end
     YpartV = Ypart(:);  % Explained variables
     save([datapath, 'Xall.mat'], 'Xall') ;
     save([datapath, 'YpartV.mat'],'YpartV');
@@ -553,10 +614,6 @@ for iCL = 1:4
     fromR = fscanf(fileID,'%f', [length(pv)*2 Inf]);
     fromR=fromR';
     fclose(fileID);
-    if (iCL==1)
-        newRow = zeros(1, size(fromR, 2));
-        fromR = [fromR(1:3, :); newRow; fromR(4:end, :)];
-    end
     for ii = 1:length(pv)
         b_fullCL(:,ii,iCL) = fromR(:, (ii-1)*2+1);
         b_fullCL_sd(:,ii,iCL) = fromR(:,(ii-1)*2+2);
@@ -565,20 +622,20 @@ for iCL = 1:4
     load([datapath, 'regresult_pos.txt'])
     load([datapath, 'regresult_neg.txt'])
     if (iCL==1) 
-        xlswrite([datapath, 'regresult_pos_oil.xlsx'], regresult_pos, 'regresult_pos', 'A');
-        xlswrite([datapath, 'regresult_neg_oil.xlsx'], regresult_neg, 'regresult_neg', 'A');
+        xlswrite([datapath, 'regresult_pos_Comm.xlsx'], regresult_pos, 'regresult_pos', 'A');
+        xlswrite([datapath, 'regresult_neg_Comm.xlsx'], regresult_neg, 'regresult_neg', 'A');
     end
     if (iCL==2) 
-        xlswrite([datapath, 'regresult_pos_stocks.xlsx'], regresult_pos, 'regresult_pos', 'A');
-        xlswrite([datapath, 'regresult_neg_stocks.xlsx'], regresult_neg, 'regresult_neg', 'A');
+        xlswrite([datapath, 'regresult_pos_Stock.xlsx'], regresult_pos, 'regresult_pos', 'A');
+        xlswrite([datapath, 'regresult_neg_Stock.xlsx'], regresult_neg, 'regresult_neg', 'A');
     end
     if (iCL==3) 
-        xlswrite([datapath, 'regresult_pos_forex.xlsx'], regresult_pos, 'regresult_pos', 'A');
-        xlswrite([datapath, 'regresult_neg_forex.xlsx'], regresult_neg, 'regresult_neg', 'A');
+        xlswrite([datapath, 'regresult_pos_Forex.xlsx'], regresult_pos, 'regresult_pos', 'A');
+        xlswrite([datapath, 'regresult_neg_Forex.xlsx'], regresult_neg, 'regresult_neg', 'A');
     end
     if (iCL==4) 
-        xlswrite([datapath, 'regresult_pos_system.xlsx'], regresult_pos, 'regresult_pos', 'A');
-        xlswrite([datapath, 'regresult_neg_system.xlsx'], regresult_neg, 'regresult_neg', 'A');
+        xlswrite([datapath, 'regresult_pos_System.xlsx'], regresult_pos, 'regresult_pos', 'A');
+        xlswrite([datapath, 'regresult_neg_System.xlsx'], regresult_neg, 'regresult_neg', 'A');
     end
 end
 
@@ -596,52 +653,51 @@ end
 
 sub1 = figure;
 figure(sub1)
-subplot(1,2,1)
+
 title('The positive network factor','FontName','Times New Roman','FontSize',10);
 colorspec1 = [1, 0, 0]; 
 colorspec2 = [0, 1, 0];
 colorspec3 = [0, 0, 1];
 colorspec4 = [0, 0, 0];
-[A1] = shadedErrorBar(pv,network_posfactor_beta(1,:), 1.96*network_posfactor_sd(1,:),'lineprops', {'-','color',colorspec1}, 'transparent',1);   % ������Ӱ���ͼ
+[A1] = shadedErrorBar(pv,network_posfactor_beta(1,:), 0.8*network_posfactor_sd(1,:),'lineprops', {'-','color',colorspec1,'LineWidth',2}, 'transparent',1);   % 绘制阴影误差图
 hold on
-[A2] = shadedErrorBar(pv,network_posfactor_beta(2,:), 1.96*network_posfactor_sd(2,:),'lineprops', {'-','color',colorspec2}, 'transparent',1);   % ������Ӱ���ͼ
+[A2] = shadedErrorBar(pv,network_posfactor_beta(2,:), 1.96*network_posfactor_sd(2,:),'lineprops', {'-','color',colorspec2,'LineWidth',2}, 'transparent',1);   % 绘制阴影误差图
 hold on 
-[A3] = shadedErrorBar(pv,network_posfactor_beta(3,:), 1.96*network_posfactor_sd(3,:),'lineprops', {'-','color',colorspec3}, 'transparent',1);  % ������Ӱ���ͼ
+[A3] = shadedErrorBar(pv,network_posfactor_beta(3,:), 1.96*network_posfactor_sd(3,:),'lineprops', {'-','color',colorspec3,'LineWidth',2}, 'transparent',1);  % 绘制阴影误差图
 hold on 
-[A4] = shadedErrorBar(pv,network_posfactor_beta(4,:), 1.96*network_posfactor_sd(4,:),'lineprops', {'-','color',colorspec4}, 'transparent',1);  % ������Ӱ���ͼ
+[A4] = shadedErrorBar(pv,network_posfactor_beta(4,:), 1.96*network_posfactor_sd(4,:),'lineprops', {'-','color',colorspec4,'LineWidth',2}, 'transparent',1);  % 绘制阴影误差图
 
-legend([A1.mainLine,A2.mainLine,A3.mainLine,A4.mainLine],{'oil', 'Stocks', 'forex', 'System'}, 'orientation','horizontal',...
+legend([A1.mainLine,A2.mainLine,A3.mainLine,A4.mainLine],{'Comm', 'Stock', 'Forex', 'System'}, 'orientation','horizontal',...
     'location','North','FontName','Times New Roman','FontSize',10);
 xlabel('quantile','FontName','Times New Roman','FontSize',10);
 ylabel('beta','FontName','Times New Roman','FontSize',10);
-set(sub1,'PaperPosition',[-1 0, 14.5 10])
-set(sub1, 'PaperSize', [13 10]);
+% set(sub1,'PaperPosition',[0 0, 10 10])
+set(sub1, 'PaperSize', [12 10]);
 set(gca, 'FontSize',10,'FontAngle','Normal','FontName','Times New Roman')
-set(gca, 'YLim', [-0.1 0.4])     
+set(gca, 'YLim', [-0.1 0.3])
 hold off;
 
-subplot(1,2,2)
+
+sub2 = figure;
+figure(sub2)
 title('The negative network factor','FontName','Times New Roman','FontSize',10);
-colorspec1 = [1, 0, 0]; 
+colorspec1 = [1, 0, 0];
 colorspec2 = [0, 1, 0];
 colorspec3 = [0, 0, 1];
 colorspec4 = [0, 0, 0];
-[B1] = shadedErrorBar(pv,network_negfactor_beta(1,:), 0.8*network_negfactor_sd(1,:),'lineprops', {'-','color',colorspec1}, 'transparent',1);   % ������Ӱ���ͼ
+[B1] = shadedErrorBar(pv,network_negfactor_beta(1,:), 0.8*network_negfactor_sd(1,:),'lineprops', {'-','color',colorspec1,'LineWidth',2}, 'transparent',1);   % 绘制阴影误差图
 hold on
-[B2] = shadedErrorBar(pv,network_negfactor_beta(2,:), 0.8*network_negfactor_sd(2,:),'lineprops', {'-','color',colorspec2}, 'transparent',1);   % ������Ӱ���ͼ
+[B2] = shadedErrorBar(pv,network_negfactor_beta(2,:), 1.96*network_negfactor_sd(2,:),'lineprops', {'-','color',colorspec2,'LineWidth',2}, 'transparent',1);   % 绘制阴影误差图
 hold on 
-[B3] = shadedErrorBar(pv,network_negfactor_beta(3,:), 0.8*network_negfactor_sd(3,:),'lineprops', {'-','color',colorspec3}, 'transparent',1);  % ������Ӱ���ͼ
+[B3] = shadedErrorBar(pv,network_negfactor_beta(3,:), 1.96*network_negfactor_sd(3,:),'lineprops', {'-','color',colorspec3,'LineWidth',2}, 'transparent',1);  % 绘制阴影误差图
 hold on 
-[B4] = shadedErrorBar(pv,network_negfactor_beta(4,:), 0.8*network_negfactor_sd(4,:),'lineprops', {'-','color',colorspec4}, 'transparent',1);  % ������Ӱ���ͼ
+[B4] = shadedErrorBar(pv,network_negfactor_beta(4,:), 1.96*network_negfactor_sd(4,:),'lineprops', {'-','color',colorspec4,'LineWidth',2}, 'transparent',1);  % 绘制阴影误差图
 
-legend([B1.mainLine,B2.mainLine,B3.mainLine,B4.mainLine],{'oil', 'Stocks', 'forex', 'System'}, 'orientation','horizontal',...
+legend([B1.mainLine,B2.mainLine,B3.mainLine,B4.mainLine],{'Comm', 'Stock', 'Forex', 'System'}, 'orientation','horizontal',...
     'location','North','FontName','Times New Roman','FontSize',10); 
 xlabel('quantile','FontName','Times New Roman','FontSize',10);
 ylabel('beta','FontName','Times New Roman','FontSize',10);
+set(sub2, 'PaperSize', [12 10]);
 set(gca, 'FontSize',10,'FontAngle','Normal','FontName','Times New Roman')
-set(gca, 'YLim', [-0.1 0.4])
+set(gca, 'YLim', [-0.1 0.3])
 hold off;
-
-
-
-
